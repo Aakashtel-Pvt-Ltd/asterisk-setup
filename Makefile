@@ -15,7 +15,7 @@ SCRIPTS := ./scripts
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check backup install configure firewall fail2ban deploy verify all
+.PHONY: help check backup install configure webserver tls services firewall fail2ban deploy verify all
 
 help: ## Show this help
 	@echo "asterisk-deploy targets:"
@@ -38,17 +38,28 @@ backup: check ## Snapshot existing /etc/asterisk before any change
 install: check ## Build Asterisk from source + install PHP/Node app deps
 	$(SCRIPTS)/install_packages.sh
 
-configure: check ## Render templates -> /etc/asterisk (envsubst)
+configure: check ## Render templates -> /etc/asterisk (+ logrotate)
 	$(SCRIPTS)/configure_asterisk.sh
 
-firewall: check ## Apply nftables default-deny + allow-lists
+webserver: check ## Install nginx + PHP-FPM front-end for /home/projects
+	$(SCRIPTS)/configure_webserver.sh
+
+tls: check ## Obtain Let's Encrypt cert + install copy-to-asterisk deploy hook
+	$(SCRIPTS)/configure_tls.sh
+
+services: check ## npm install + install/enable companion systemd services
+	$(SCRIPTS)/deploy_app.sh
+
+firewall: check ## Apply nftables default-deny + allow-lists (incl. 80/443)
 	$(SCRIPTS)/configure_firewall.sh
 
-fail2ban: check ## Install asterisk + sshd jails
+fail2ban: check ## Install asterisk + sshd jails (matches reference)
 	$(SCRIPTS)/configure_fail2ban.sh
 
-deploy: backup install configure firewall fail2ban ## Full sequence (no service restart)
-	@echo "Deploy complete. Review, then: systemctl enable --now asterisk"
+deploy: backup install configure webserver tls services firewall fail2ban ## Full sequence (no service restart)
+	@echo "Deploy complete. Review, then start services:"
+	@echo "  systemctl enable --now asterisk"
+	@echo "  systemctl start ami broadcast sipuser sipqueue-populate"
 	@echo "Then run: make verify"
 
 verify: check ## Check registration, ports, and log health

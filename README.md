@@ -9,13 +9,19 @@ the reference server `mth-callcenter` — see `../asterisk_setup_analysis.md`.
 
 ## What it builds
 
-- Asterisk 22.10.0 compiled from source, running as `asterisk:asterisk`.
+- Asterisk 22.10.0 compiled from source (exact module set via shipped
+  `menuselect.makeopts`), running as `asterisk:asterisk`.
 - One **NTC IMS** SIP trunk (register-based, codec `alaw`), NAT/RTP tuned for
   behind-NAT media (`external_media_address`, ICE host candidate, RTP 10000–30000).
 - Transports: UDP/TCP 5060, TLS 5061, WSS (WebRTC).
 - AMI + ARI + HTTP(S), **hardened to loopback by default**.
-- nftables firewall (default-deny) + fail2ban (asterisk + sshd).
-- Hooks for the `/home/projects` PHP-AGI + Node-AMI/broadcast app layer.
+- **nginx + PHP-FPM** web/API front-end for `/home/projects` (API + recordings).
+- **Let's Encrypt / certbot** TLS with auto-renewal + a hook that copies certs to
+  `/home/certs` (asterisk-readable) and reloads TLS without dropping calls.
+- **Four companion systemd services** (`ami`, `broadcast`, `sipuser`,
+  `sipqueue-populate`) + `npm install`.
+- nftables firewall (default-deny, public 80/443) + fail2ban (asterisk + sshd,
+  matching the reference jail) + Asterisk logrotate.
 
 ## Prerequisites
 
@@ -28,14 +34,17 @@ the reference server `mth-callcenter` — see `../asterisk_setup_analysis.md`.
 
 ```bash
 cp .env.example .env
-$EDITOR .env                 # fill PUBLIC_IP, LOCAL_IP, SIP_SECRET, AMI_SECRET, ...
+$EDITOR .env                 # PUBLIC_IP, LOCAL_IP, DOMAIN, SIP_SECRET, AMI_SECRET, CERTBOT_EMAIL, ...
+# (put your /home/projects app code in place for the 'services' stage)
 sudo make check              # preflight
-sudo make deploy             # backup -> install -> configure -> firewall -> fail2ban
+sudo make deploy             # backup->install->configure->webserver->tls->services->firewall->fail2ban
 sudo systemctl enable --now asterisk
-sudo make verify             # registration + ports + logs
+sudo systemctl start ami broadcast sipuser sipqueue-populate
+sudo make verify             # registration + ports + nginx/TLS + logs
 ```
 
-Run individual stages with `sudo make <target>` (`make help` lists them).
+Run individual stages with `sudo make <target>` (`make help` lists them):
+`backup install configure webserver tls services firewall fail2ban verify`.
 
 ## Filling `.env`
 

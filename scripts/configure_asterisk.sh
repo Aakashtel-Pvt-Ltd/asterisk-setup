@@ -29,13 +29,32 @@ export SIP_PROXY_PORT="${SIP_PROXY##*:}"
 export CARRIER_CIDR="${CARRIER_CIDR:-$LOCAL_CIDR}"
 export SYSTEMNAME="${SYSTEMNAME:-Aakashtel}"
 
+# IMPORTANT: only substitute OUR deploy variables. Asterisk configs contain their
+# own ${...} tokens (${EXTEN}, ${CALLERID(num)}, ${CUT(...)}, ${last_part}) that
+# must be left untouched. A bare `envsubst` would blank them out and break the
+# dialplan, so we pass an explicit whitelist.
+SUBST_VARS='${PUBLIC_IP} ${LOCAL_IP} ${LOCAL_CIDR} ${CARRIER_CIDR} \
+${RTP_START} ${RTP_END} ${SIP_PROVIDER_HOST} ${SIP_PROXY} ${SIP_PROXY_HOST} \
+${SIP_PROXY_PORT} ${SIP_TRUNK_NAME} ${SIP_USERNAME} ${SIP_SECRET} ${DID_NUMBER} \
+${OUTBOUND_CID} ${TRUNK_CODEC} ${AMI_USER} ${AMI_SECRET} ${AMI_BIND} ${ENABLE_AMI} \
+${ARI_USER} ${ARI_SECRET} ${ENABLE_ARI} ${TLS_CERT} ${TLS_KEY} ${HTTP_BIND} \
+${HTTPS_BIND} ${SYSTEMNAME} ${PROJECTS_DIR}'
+
 echo "==> Rendering templates -> $DST"
-for t in "$TPL"/*.template; do
-  base="$(basename "$t" .template)"      # e.g. pjsip.conf
-  out="$DST/$base"
-  envsubst < "$t" > "$out"
+for base in pjsip.conf extensions.conf rtp.conf modules.conf manager.conf logger.conf; do
+  t="$TPL/${base}.template"
+  [[ -f "$t" ]] || { echo "    MISSING template: $t"; exit 1; }
+  envsubst "$SUBST_VARS" < "$t" > "$DST/$base"
   echo "    $base"
 done
+
+# Install the logrotate rule the reference server was MISSING (its messages.log
+# had grown to ~1GB). Rendered here so the rebuild never has that problem.
+if [[ -f "$TPL/logrotate-asterisk.template" ]]; then
+  envsubst '${PROJECTS_DIR}' < "$TPL/logrotate-asterisk.template" > /etc/logrotate.d/asterisk
+  chmod 0644 /etc/logrotate.d/asterisk
+  echo "    -> /etc/logrotate.d/asterisk"
+fi
 
 # Preserve the #include targets for the generated app configs
 mkdir -p "${PROJECTS_DIR:-/home/projects}"

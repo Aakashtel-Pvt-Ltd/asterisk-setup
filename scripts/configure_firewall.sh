@@ -37,11 +37,15 @@ table inet asterisk_fw {
         ct state established,related accept
         ip protocol icmp accept
 
-        # SSH / AMI / HTTP / ARI — admin sources only
+        # Web front-end (nginx) — public, needed for the app + Let's Encrypt HTTP-01
+        tcp dport 80  accept
+        tcp dport 443 accept
+
+        # SSH / AMI / ARI(8088) — admin sources only
         tcp dport 22   ip saddr @admin_src accept
         tcp dport 5038 ip saddr @admin_src accept   # AMI
-        tcp dport 8088 ip saddr @admin_src accept   # HTTP/ARI
-        tcp dport 7443 ip saddr @admin_src accept   # HTTPS/WSS (relax if public WebRTC)
+        tcp dport 8088 ip saddr @admin_src accept   # ARI/HTTP (loopback+admin)
+        tcp dport 7443 ip saddr @admin_src accept   # Asterisk HTTPS/WSS (relax if public WebRTC)
 
         # SIP signaling — carrier + LAN
         udp dport 5060 ip saddr @sip_src accept

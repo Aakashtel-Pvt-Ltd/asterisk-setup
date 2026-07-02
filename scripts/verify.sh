@@ -48,8 +48,20 @@ if [[ -f "$LOG" ]]; then
   tail -n 20 "$LOG" | grep -iE "error|warning" && say WARN "recent errors/warnings above" || true
 fi
 
+echo "==> Web / TLS layer"
+: "${PHP_VERSION:=8.3}" "${CERT_DEST:=/home/certs}" "${DOMAIN:=}"
+systemctl is-active --quiet nginx && say OK "nginx active" || say WARN "nginx not active"
+systemctl is-active --quiet "php${PHP_VERSION}-fpm" && say OK "php${PHP_VERSION}-fpm active" || say WARN "php-fpm not active"
+if [[ -f "$CERT_DEST/fullchain.pem" && -f "$CERT_DEST/privkey.pem" ]]; then
+  exp=$(openssl x509 -in "$CERT_DEST/fullchain.pem" -noout -enddate 2>/dev/null | cut -d= -f2)
+  say OK "TLS cert present in $CERT_DEST (expires: ${exp:-?})"
+else
+  say WARN "TLS cert not found in $CERT_DEST"
+fi
+systemctl is-enabled --quiet certbot.timer 2>/dev/null && say OK "certbot auto-renew enabled" || say WARN "certbot.timer not enabled"
+
 echo "==> Companion services"
-for u in ami broadcast; do
+for u in ami broadcast sipqueue-populate; do
   systemctl is-active --quiet "$u" && say OK "$u.service active" || say WARN "$u.service not active"
 done
 

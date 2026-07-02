@@ -1,0 +1,15 @@
+[Unit]
+Description=ami user.conf generator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=${PROJECTS_DIR}/ami
+ExecStart=${NODE_BIN} ${PROJECTS_DIR}/ami/user.js
+Environment=PATH=/usr/bin:/usr/local/bin
+TimeoutStartSec=120
+ExecStartPre=/bin/bash -lc 'exec 9>/run/sipuser.lock; flock -n 9'
+
+[Install]
+WantedBy=multi-user.target

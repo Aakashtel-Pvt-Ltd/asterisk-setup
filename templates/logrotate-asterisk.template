@@ -1,0 +1,17 @@
+# /etc/logrotate.d/asterisk — installed by configure_asterisk.sh
+# The reference server had NO rotation and messages.log reached ~1 GB. This fixes it.
+/var/log/asterisk/messages.log
+/var/log/asterisk/queue_log
+/var/log/asterisk/*.csv
+{
+    weekly
+    rotate 8
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        /usr/sbin/asterisk -rx 'logger reload' > /dev/null 2>&1 || true
+    endscript
+}

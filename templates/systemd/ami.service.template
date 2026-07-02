@@ -1,0 +1,17 @@
+[Unit]
+Description=ami
+After=network-online.target asterisk.service
+Wants=network-online.target
+
+[Service]
+ExecStart=${NODE_BIN} ${PROJECTS_DIR}/ami/listAllEvent.js
+WorkingDirectory=${PROJECTS_DIR}/ami
+RestartSec=30
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=nodejs-my-server-example
+Environment=PATH=/usr/bin:/usr/local/bin
+
+[Install]
+WantedBy=multi-user.target

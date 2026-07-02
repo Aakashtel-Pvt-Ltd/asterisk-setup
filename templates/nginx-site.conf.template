@@ -1,0 +1,53 @@
+# nginx site for the Aakashtel web/API front-end — rendered by configure_webserver.sh
+# Serves ${WEB_ROOT} (PHP via php-fpm) and exposes call recordings under /voice/.
+# The 443/TLS block is added by certbot ( configure_tls.sh ), so this template
+# defines the HTTP (port 80) server; certbot rewrites it to add SSL + redirect.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    root ${WEB_ROOT};
+    index index.html index.htm index.php;
+
+    error_log  ${WEB_ROOT}/logs/nginx.log;
+    access_log ${WEB_ROOT}/logs/nginx.log;
+
+    location / {
+        autoindex off;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # PHP API endpoints under /service (php-fpm)
+    location /service {
+        alias ${WEB_ROOT}/service;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    # Call-recording downloads (directory listing)
+    location ^~ /voice/ {
+        alias ${RECORDINGS_DIR}/;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+
+    # Deny dotfiles
+    location ~ /\. {
+        deny all;
+    }
+
+    # PHP handler
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
