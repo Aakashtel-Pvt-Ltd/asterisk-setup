@@ -71,8 +71,15 @@ else
   make -j"$(nproc)"
   make install
   make samples          # stock sample configs (our templates overwrite the live ones)
+  make config           # installs /etc/init.d/asterisk + rc links (the service itself!)
   ldconfig
+  systemctl daemon-reload
 fi
+
+# --- 4b. Data-directory ownership (make install leaves them root-owned) -------
+for d in /var/lib/asterisk /var/log/asterisk /var/spool/asterisk /var/run/asterisk /var/cache/asterisk; do
+  [[ -d "$d" ]] && chown -R asterisk:asterisk "$d"
+done
 
 # --- 5. Runtime identity file -------------------------------------------------
 cat > /etc/default/asterisk <<'EOF'

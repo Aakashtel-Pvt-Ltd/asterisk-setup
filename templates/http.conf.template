@@ -1,0 +1,15 @@
+; http.conf — rendered by configure_asterisk.sh
+; Asterisk's built-in HTTP server: carries ARI (8088) and the WSS/WebRTC
+; transport + HTTPS on ${HTTPS_BIND}. Without this file enabled, the
+; wss_transport in pjsip.conf will NOT bind and browser phones cannot register.
+
+[general]
+enabled=yes
+bindaddr=${HTTP_BIND}          ; hardened default: 127.0.0.1:8088 (was 0.0.0.0 on reference)
+tlsenable=${ENABLE_TLS}
+tlsbindaddr=${HTTPS_BIND}      ; reference uses non-standard 7443 (not 8089)
+tlscertfile=${TLS_CERT}
+tlsprivatekey=${TLS_KEY}
+enablestatic=yes
+sessionlimit=7001
+redirect=/ /static/index.html

@@ -1,0 +1,12 @@
+; cdr.conf — rendered by configure_asterisk.sh
+; CSV call records land in /var/log/asterisk/cdr-csv/Master.csv (rotated by logrotate).
+
+[general]
+enable=yes
+unanswered = yes
+
+[csv]
+usegmtime=yes    ; log date/time in GMT
+loguniqueid=yes
+loguserfield=yes
+accountlogs=yes  ; separate log per account code

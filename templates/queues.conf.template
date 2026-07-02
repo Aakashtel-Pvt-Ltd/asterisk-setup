@@ -1,0 +1,8 @@
+; queues.conf — rendered by configure_asterisk.sh
+; Queue definitions themselves are GENERATED into queue_custom.conf by the
+; sipqueue-populate service (from the backend API) — this file just includes them.
+
+[general]
+shared_lastcall=yes
+
+#include ${PROJECTS_DIR}/queue_custom.conf

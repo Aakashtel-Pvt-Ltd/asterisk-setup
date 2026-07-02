@@ -1,0 +1,5 @@
+; cdr_manager.conf — rendered by configure_asterisk.sh
+; Emits CDR records as AMI events — the Node ami.service consumes these.
+
+[general]
+enabled = yes

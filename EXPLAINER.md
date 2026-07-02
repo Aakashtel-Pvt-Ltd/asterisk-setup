@@ -72,12 +72,18 @@ asterisk-deploy/
 │   ├── configure_fail2ban.sh
 │   └── verify.sh
 └── templates/               # parameterized configs, one file per concern
-    ├── pjsip.conf.template          # -> /etc/asterisk/pjsip.conf
-    ├── extensions.conf.template     # -> /etc/asterisk/extensions.conf
-    ├── rtp.conf.template            # -> /etc/asterisk/rtp.conf
-    ├── modules.conf.template        # -> /etc/asterisk/modules.conf
-    ├── manager.conf.template        # -> /etc/asterisk/manager.conf
-    ├── logger.conf.template         # -> /etc/asterisk/logger.conf
+    ├── asterisk.conf.template       # -> core: runuser=asterisk, systemname, dirs
+    ├── pjsip.conf.template          # -> SIP: trunk, transports, NAT, endpoints
+    ├── extensions.conf.template     # -> dialplan (the 4 custom contexts)
+    ├── rtp.conf.template            # -> RTP range + NAT media + ICE
+    ├── modules.conf.template        # -> module loading
+    ├── manager.conf.template        # -> AMI (hardened to loopback)
+    ├── http.conf.template           # -> HTTP 8088 + HTTPS 7443 (carries ARI + WSS)
+    ├── ari.conf.template            # -> ARI user (password stored crypted)
+    ├── queues.conf.template         # -> queue engine + #include queue_custom.conf
+    ├── cdr.conf.template            # -> CSV call records (+unanswered)
+    ├── cdr_manager.conf.template    # -> CDR-as-AMI-events (consumed by ami.service)
+    ├── logger.conf.template         # -> logging
     ├── logrotate-asterisk.template  # -> /etc/logrotate.d/asterisk
     ├── nginx-site.conf.template     # -> /etc/nginx/sites-available/aakashtel
     └── systemd/                     # -> /etc/systemd/system/*.service
@@ -86,6 +92,9 @@ asterisk-deploy/
         ├── sipuser.service.template
         └── sipqueue-populate.service.template
 ```
+
+All **12 Asterisk config files that were customized on the reference server** are
+templated — the render list in `configure_asterisk.sh` matches the audit exactly.
 
 ---
 
@@ -256,7 +265,15 @@ Step by step:
    - `make -j$(nproc)` (compile using all CPU cores), `make install`,
    - `make samples` (drops the stock sample configs — our templates overwrite the
      ones that matter),
-   - `ldconfig` (refresh the shared-library cache).
+   - `make config` — **installs the service itself** (`/etc/init.d/asterisk` + rc
+     links; systemd picks it up via its sysv-generator, exactly like the reference
+     box). Without this, `systemctl enable asterisk` would fail,
+   - `ldconfig` (refresh the shared-library cache),
+   - `chown -R asterisk:asterisk` on `/var/lib|log|spool|run|cache/asterisk` —
+     `make install` leaves them root-owned and Asterisk (running as `asterisk`)
+     couldn't write logs/CDR/astdb.
+   - If the kit ships `menuselect.makeopts` (captured from the reference server),
+     the build uses it for an **exact module match** instead of guessing.
 5. **Write `/etc/default/asterisk`** — sets `AST_USER`/`AST_GROUP=asterisk` so the
    daemon runs as the right identity.
 6. **Install Node.js via nvm** — for the companion `ami`/`broadcast` services. Also
@@ -287,14 +304,25 @@ This is where the template + `.env` merge happens.
    whitelist (`$SUBST_VARS` = only our deploy variables like `${PUBLIC_IP}`,
    `${SIP_SECRET}`, `${DID_NUMBER}`…). `envsubst` then replaces only those and leaves
    every Asterisk `${EXTEN}` untouched. (This was a real bug fixed during review.)
+   It renders **all 12 customized configs**: `asterisk.conf` (runuser — Asterisk
+   never runs as root), `pjsip.conf`, `extensions.conf`, `rtp.conf`, `modules.conf`,
+   `manager.conf`, `logger.conf`, `http.conf` (without it the stock sample leaves
+   HTTP **disabled** → no ARI, no WSS/WebRTC), `ari.conf`, `queues.conf`,
+   `cdr.conf`, `cdr_manager.conf`.
+4. **Crypts the ARI password** — `openssl passwd -6 "$ARI_SECRET"` → the template
+   stores only the sha-512 hash (`password_format = crypt`), never plaintext.
 5. **Install the logrotate rule** the reference server was missing (its `messages.log`
    had reached ~1 GB) → `/etc/logrotate.d/asterisk`.
 6. **Create the `#include` targets** — `touch`es `/home/projects/user.conf` and
-   `queue_custom.conf` so Asterisk doesn't error on the `#include` lines before the
-   Node generators have run.
-7. **Fix ownership/permissions** — `chown -R asterisk:asterisk /etc/asterisk`, dir
+   `queue_custom.conf` (owned `asterisk`, `0664`) so Asterisk doesn't error on the
+   `#include` lines before the Node generators have run.
+7. **Self-signed cert fallback** — if `${TLS_CERT}` doesn't exist yet (certbot runs
+   later in the sequence), it generates a temporary 30-day self-signed pair so the
+   TLS/WSS transports can bind and Asterisk starts cleanly; `make tls` replaces it
+   with the real Let's Encrypt cert.
+8. **Fix ownership/permissions** — `chown -R asterisk:asterisk /etc/asterisk`, dir
    `0750`, files `0640` (matches the reference box; keeps secrets non-world-readable).
-8. **Does NOT reload Asterisk** — deliberately. On a fresh host you start Asterisk
+9. **Does NOT reload Asterisk** — deliberately. On a fresh host you start Asterisk
    yourself afterwards; the script won't touch a running service.
 
 ### 5.4 `configure_webserver.sh` — the nginx + PHP-FPM front-end

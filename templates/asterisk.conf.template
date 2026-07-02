@@ -1,0 +1,26 @@
+; asterisk.conf — rendered by configure_asterisk.sh
+; Critical: runuser/rungroup make Asterisk drop root; systemname labels CDRs/CLI.
+
+[directories](!)
+astcachedir => /var/cache/asterisk
+astetcdir => /etc/asterisk
+astmoddir => /usr/lib/asterisk/modules
+astvarlibdir => /var/lib/asterisk
+astdbdir => /var/lib/asterisk
+astkeydir => /var/lib/asterisk
+astdatadir => /var/lib/asterisk
+astagidir => /var/lib/asterisk/agi-bin
+astspooldir => /var/spool/asterisk
+astrundir => /var/run/asterisk
+astlogdir => /var/log/asterisk
+astsbindir => /usr/sbin
+
+[options]
+internal_timing = no
+maxfiles = 999999           ; open-file limit (matches reference)
+verbose = 7
+debug = 0
+systemname = ${SYSTEMNAME}
+runuser = asterisk          ; never run as root
+rungroup = asterisk
+documentation_language = en_US

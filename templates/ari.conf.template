@@ -1,0 +1,13 @@
+; ari.conf — rendered by configure_asterisk.sh
+; ARI (REST interface) rides the HTTP server from http.conf.
+; The password is stored CRYPTED (sha-512) — configure_asterisk.sh generates the
+; hash from ARI_SECRET with `openssl passwd -6`; the plaintext never lands on disk.
+
+[general]
+enabled = ${ENABLE_ARI}
+
+[${ARI_USER}]
+type = user
+read_only = no
+password_format = crypt
+password = ${ARI_SECRET_CRYPT}
