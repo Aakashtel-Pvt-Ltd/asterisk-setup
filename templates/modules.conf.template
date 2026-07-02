@@ -1,0 +1,14 @@
+; modules.conf — rendered by configure_asterisk.sh
+; chan_pjsip is authoritative; chan_sip is not used. Mirrors reference server.
+
+[modules]
+autoload=yes
+
+; HEP monitoring not used
+noload = res_hep.so
+noload = res_hep_pjsip.so
+noload = res_hep_rtcp.so
+
+; app_voicemail is mutually exclusive — keep the plain one, drop IMAP/ODBC variants
+noload = app_voicemail_imap.so
+noload = app_voicemail_odbc.so

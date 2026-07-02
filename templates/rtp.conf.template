@@ -1,0 +1,15 @@
+; rtp.conf — rendered by configure_asterisk.sh (envsubst)
+; CRITICAL for behind-NAT media. Values mirror the reference server.
+
+[general]
+rtpstart=${RTP_START}
+rtpend=${RTP_END}
+strictrtp=no          ; allow port/SSRC to change when NAT flips (avoids one-way audio)
+probation=2           ; learn media source faster
+rtp_keepalive=10      ; keepalive so inactivity timers don't tear down media
+local_net=${LOCAL_CIDR}
+media_address=${PUBLIC_IP}
+external_media_address=${PUBLIC_IP}
+
+[ice_host_candidates]
+${LOCAL_IP} => ${PUBLIC_IP}

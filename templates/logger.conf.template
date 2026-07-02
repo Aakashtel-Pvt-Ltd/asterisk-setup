@@ -1,0 +1,9 @@
+; logger.conf — rendered by configure_asterisk.sh
+; Mirrors the reference server. Pair with /etc/logrotate.d/asterisk (see README)
+; to avoid the ~1GB unrotated messages.log seen on the reference box.
+
+[general]
+
+[logfiles]
+console => notice,warning,error
+messages.log => notice,warning,error

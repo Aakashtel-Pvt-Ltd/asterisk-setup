@@ -1,0 +1,52 @@
+; extensions.conf — rendered by configure_asterisk.sh
+; Only the LIVE custom contexts from the reference server. All call logic lives in
+; the PHP AGI apps under ${PROJECTS_DIR}/agi and ${PROJECTS_DIR}/stageagi.
+
+[general]
+static=yes
+writeprotect=no
+clearglobalvars=no
+
+[globals]
+OUTBOUND_CID=${OUTBOUND_CID}
+DID=${DID_NUMBER}
+
+;--------------------------------------------------------------------
+; Inbound from the NTC trunk (identify match on the SBC IP)
+[incomming]
+; Strip a leading '+' and re-enter
+exten => _+X.,1,Goto(incomming,${EXTEN:1},1)
+; Match the DID (without +)
+exten => ${DID_NUMBER},1,Verbose(1, Channel call from ${EXTEN})
+ same => n,NoOp(Incoming call on extension ${EXTEN})
+ same => n,AGI("${PROJECTS_DIR}/agi/main.php")
+ same => n,Hangup()
+
+;--------------------------------------------------------------------
+; Calls originated by local SIP extensions
+[from-extensions]
+exten => _[*0-9].,1,Verbose(Outgoing call from ${CALLERID(num)})
+ same => n,Set(last_part=${CUT(CALLERID(num),_,2)})
+ same => n,NoOp(Last part after splitting by '_': ${last_part})
+ same => n,Set(DENOISE(rx)=on)
+ same => n,Set(DENOISE(tx)=on)
+ same => n,AGI(${PROJECTS_DIR}/agi/fromextension.php)
+ same => n,Hangup()
+
+;--------------------------------------------------------------------
+; Outbound campaign / broadcast origination target
+[outgoing]
+exten => _[*0-9].,1,AGI("${PROJECTS_DIR}/agi/campaign.php")
+ same => n,Hangup()
+exten => _+X.,1,Goto(outgoing,${EXTEN:1},1)
+
+;--------------------------------------------------------------------
+; AMI-triggered origination (Node AMI app -> Originate here)
+[ami-action]
+exten => s,1,Verbose(2,Performing AMI Triggered AGI for ${CALLERID(num)})
+ same => n,AGI(${PROJECTS_DIR}/stageagi/ami-triggred.php)
+ same => n,Hangup()
+exten => h,1,NoOp(Run log AGI after hangup)
+ same => n,AGI(${PROJECTS_DIR}/stageagi/ami-triggred.php)
+exten => _X.,1,NoOp(Force linkedid if provided)
+ same => n,AGI(${PROJECTS_DIR}/stageagi/ami-triggred.php)

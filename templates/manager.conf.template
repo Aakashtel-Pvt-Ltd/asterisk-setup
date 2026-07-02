@@ -1,0 +1,20 @@
+; manager.conf — rendered by configure_asterisk.sh
+; HARDENED vs the reference server: the live box bound 0.0.0.0 and permit=0.0.0.0/0.
+; Here AMI binds to ${AMI_BIND} (default loopback). Widen `permit` deliberately only
+; if remote AMI is required, and pair it with the firewall admin allow-list.
+
+[general]
+enabled = ${ENABLE_AMI}
+port = 5038
+bindaddr = ${AMI_BIND}
+displayconnects = no
+
+[${AMI_USER}]
+secret = ${AMI_SECRET}          ; <REDACTED_SECRET> injected from .env
+deny = 0.0.0.0/0.0.0.0
+permit = 127.0.0.1/255.255.255.255
+; To allow the app host/subnet, add another permit line, e.g.:
+; permit = ${LOCAL_CIDR}
+read = system,call,log,verbose,command,agent,user,config,dtmf,reporting,cdr,dialplan,originate,message
+write = system,call,log,verbose,command,agent,user,config,dtmf,reporting,cdr,dialplan,originate,message
+writetimeout = 5000
