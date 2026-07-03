@@ -1,92 +1,91 @@
 # asterisk-deploy
 
-Rebuild the **Aakashtel** call-center PBX (Asterisk **22.10.0**, source build,
-behind NAT) on a **fresh** Ubuntu 24.04 host. Generated from a read-only audit of
-the reference server `mth-callcenter` — see `../asterisk_setup_analysis.md`.
+Rebuild the **Aakashtech** call-center PBX (Asterisk **22.7.0**, source build)
+on a **fresh** Ubuntu 24.04 host. Templates were **regenerated 2026-07 directly
+from the live server's `/etc/asterisk`** — a render with the live values is
+byte-identical to the running config (see `EXPLAINER.md` for the two deliberate
+exceptions).
 
-> ⚠️ This kit targets a **fresh host only**. It never modifies the reference
+> ⚠️ This kit targets a **fresh host only**. It never modifies the live
 > production server. Every secret is a placeholder — fill `.env` yourself.
 
 ## What it builds
 
-- Asterisk 22.10.0 compiled from source (exact module set via shipped
-  `menuselect.makeopts`), running as `asterisk:asterisk`.
-- One **NTC IMS** SIP trunk (register-based, codec `alaw`), NAT/RTP tuned for
-  behind-NAT media (`external_media_address`, ICE host candidate, RTP 10000–30000).
-- Transports: UDP/TCP 5060, TLS 5061, WSS (WebRTC).
-- AMI + ARI + HTTP(S), **hardened to loopback by default**.
-- **nginx + PHP-FPM** web/API front-end for `/home/projects` (API + recordings).
-- **Let's Encrypt / certbot** TLS with auto-renewal + a hook that copies certs to
-  `/home/certs` (asterisk-readable) and reloads TLS without dropping calls.
-- **Four companion systemd services** (`ami`, `broadcast`, `sipuser`,
-  `sipqueue-populate`) + `npm install`.
-- nftables firewall (default-deny, public 80/443) + fail2ban (asterisk + sshd,
-  matching the reference jail) + Asterisk logrotate.
-
-## Prerequisites
-
-- Fresh Ubuntu 24.04 (or Debian-like) host, root/sudo.
-- Public + private IPs known; NAT device able to forward SIP 5060/5061 and
-  UDP 10000–30000 to this host, with **SIP ALG disabled**.
-- Fresh NTC trunk credentials and a TLS cert for the new hostname.
+- Asterisk 22.7.0 compiled from source (exact module set via shipped
+  `menuselect.makeopts`, copied from the live build tree), running as
+  `asterisk:asterisk`.
+- **Two carrier trunks, both supported and independently toggled in `.env`:**
+  - **Ncell** (`ENABLE_NCELL`, default yes): IP-authenticated, dual SBC
+    (KTM 116.68.210.56 / POK 116.68.213.56), split
+    `_incomming`/`_outgoing` endpoints, T.38, `dtmf_mode` per direction —
+    rendered to `ncell.conf`.
+  - **NTC IMS** (`ENABLE_NTC`): registration-based (`ims.ntc.net.np`),
+    codec `alaw` — rendered to `ntc.conf`. Earlier deployments were
+    NTC-only; both files are always `#include`d from `pjsip.conf` (a disabled
+    trunk renders as a comment-only stub).
+- **Airtel** static IP peer (`UKB225`) + local **Kamailio / OpenSIPS /
+  FreeSWITCH** peers and their dialplan contexts, exactly as live.
+- Transports: shared UDP (`system-udp-ens224`), TLS 5061, WSS (WebRTC);
+  HTTP 8088 + HTTPS/WSS on **7443**.
+- AMI (`stage-ami`, with CDR `channelvars` + RTCP event filters the Node apps
+  rely on), ARI, `cdr_manager` with the `campaignId`/`campaignLogId`/`broadcast`
+  mappings, ConfBridge profiles, survey feature map (`*9`), AI media gateway
+  (`websocket_client.conf`).
+- **nginx + PHP-FPM** front-end, **Let's Encrypt / certbot** with a hook that
+  copies certs to `${PROJECTS_DIR}/certs` (asterisk-readable).
+- Companion systemd oneshots **`sipuser`** (generates `users.conf`) and
+  **`sipqueue-populate`** (generates `queue_custom.conf`). The long-running
+  Node apps (AMI-Broadcaster, ari-node, conference-app, …) run under **pm2**
+  on the live box — deploy them from your app repo.
+- nftables firewall (default-deny; RTP 10000–20000 matches `rtp.conf`),
+  fail2ban (asterisk + sshd), Asterisk logrotate (live box's `messages.log`
+  once hit ~1 GB unrotated).
 
 ## Quick start
 
 ```bash
 cp .env.example .env
-$EDITOR .env                 # PUBLIC_IP, LOCAL_IP, DOMAIN, SIP_SECRET, AMI_SECRET, CERTBOT_EMAIL, ...
-# (put your /home/projects app code in place for the 'services' stage)
+$EDITOR .env                 # PUBLIC_IP, LOCAL_CIDR, trunk toggles/secrets, AMI/ARI secrets, DOMAIN, ...
+# (put your app code in ${PROJECTS_DIR} — default /home/stage/asterisk — for the 'services' stage)
 sudo make check              # preflight
 sudo make deploy             # backup->install->configure->webserver->tls->services->firewall->fail2ban
 sudo systemctl enable --now asterisk
-sudo systemctl start ami broadcast sipuser sipqueue-populate
-sudo make verify             # registration + ports + nginx/TLS + logs
+sudo systemctl start sipuser sipqueue-populate    # oneshot config generators
+sudo make verify             # trunk status + ports + contexts + nginx/TLS + logs
 ```
 
-Run individual stages with `sudo make <target>` (`make help` lists them):
-`backup install configure webserver tls services firewall fail2ban verify`.
+Run individual stages with `sudo make <target>` (`make help` lists them).
 
 ## Filling `.env`
 
 Every host-specific / secret value lives in `.env` (see inline comments in
-`.env.example`). Required before `configure`: `PUBLIC_IP`, `LOCAL_IP`,
-`LOCAL_CIDR`, `RTP_START/END`, `SIP_*`, `DID_NUMBER`, `OUTBOUND_CID`,
-`AMI_USER/SECRET`, `ARI_USER/SECRET`, `TLS_CERT/KEY`. `configure_asterisk.sh`
-refuses to run if `SIP_SECRET` is still `<ASK_USER>`.
+`.env.example`). `configure_asterisk.sh` validates the variable set for
+whichever trunks you enable and refuses to run while any secret is still
+`<ASK_USER>`. Trunk numbers (`NCELL_TRUNK_NAME` / `NTC_TRUNK_NAME`) double as
+the PJSIP section names — the AGI/AMI apps address endpoints as
+`<number>_incomming` / `<number>_outgoing`.
+
+**Backwards compatible:** a `.env` written for the earlier NTC-only kit keeps
+working — the legacy names (`SIP_TRUNK_NAME`, `SIP_PROVIDER_HOST`, `SIP_PROXY`,
+`SIP_USERNAME`, `SIP_SECRET`, `TRUNK_CODEC`) are mapped to their `NTC_*`
+equivalents automatically, `ENABLE_NTC`/`ENABLE_NCELL` are inferred from which
+trunk variables are present, and the Airtel/OpenSIPS/AI-gateway constants
+default to the live server's values.
 
 ## App layer (manual step)
 
-The dialplan calls PHP AGI scripts and the Node services (`ami`, `broadcast`,
-`sipuser`, `sipqueue-populate`) regenerate `user.conf` / `queue_custom.conf` from a
-backend API. Deploy `/home/projects` from your app repo, set each `.env`
-(`APP_BACKEND_BASE_URL`, AMI creds, AWS S3 keys), run `npm install` in `ami/` and
-`broadcast/`, and install the systemd units. These are **not** shipped here because
-they contain application secrets.
-
-## Recommended extra: log rotation
-
-The reference box had a ~1 GB unrotated `messages.log`. Add:
-
-```
-# /etc/logrotate.d/asterisk
-/var/log/asterisk/messages.log /var/log/asterisk/queue_log {
-    weekly
-    rotate 8
-    missingok
-    notifempty
-    compress
-    delaycompress
-    postrotate
-        /usr/sbin/asterisk -rx 'logger reload' > /dev/null 2>&1 || true
-    endscript
-}
-```
+The dialplan calls PHP AGI scripts in `${PROJECTS_DIR}/agi` (main.php,
+fromextension.php, campaign.php, ami-triggred.php, survey*.php) and the
+generated includes `users.conf` / `queue_custom.conf` / `moh_files.conf` come
+from the Node apps in `${PROJECTS_DIR}/ami`. Deploy those from your app repo,
+set `APP_BACKEND_BASE_URL` + AMI creds, `npm install`, then
+`make services`. MOH audio lives under `/var/lib/asterisk/moh/moh_<number>/…`.
 
 ## Rollback
 
-`backup_existing_config.sh` snapshots `/etc/asterisk` to
-`/var/backups/asterisk-config-<timestamp>/etc-asterisk.tar.gz` before changes.
-Restore with:
+`backup_existing_config.sh` snapshots `/etc/asterisk` (plus the generated
+`users.conf` / `queue_custom.conf` / `moh_files.conf`) to
+`/var/backups/asterisk-config-<timestamp>/` before changes. Restore with:
 
 ```bash
 tar -xzf /var/backups/asterisk-config-<timestamp>/etc-asterisk.tar.gz -C /etc
@@ -94,7 +93,10 @@ tar -xzf /var/backups/asterisk-config-<timestamp>/etc-asterisk.tar.gz -C /etc
 
 ## Security notes (apply on the NEW box)
 
-- Keep AMI/HTTP on loopback (defaults here) unless remote access is required;
-  if so, widen `permit` **and** the firewall admin allow-list together.
-- Rotate all endpoint/AMI/ARI secrets to strong values.
-- Confirm the router forwards RTP and disables SIP ALG, or you'll get one-way audio.
+- The kit reproduces the live bindings (`AMI 0.0.0.0:5038`, HTTP `0.0.0.0:8088`)
+  — the nftables allow-lists are what actually restrict access. Tighten
+  `AMI_BIND`/`HTTP_BIND` to `127.0.0.1` if the consumers are local.
+- ARI password is stored **plaintext** in `ari.conf` (as live). Rotate all
+  AMI/ARI/endpoint secrets to strong values.
+- Confirm the edge forwards RTP 10000–20000/udp and disables SIP ALG, or
+  you'll get one-way audio.

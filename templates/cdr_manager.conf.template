@@ -1,5 +1,18 @@
-; cdr_manager.conf — rendered by configure_asterisk.sh
-; Emits CDR records as AMI events — the Node ami.service consumes these.
-
+;
+; Asterisk Call Management CDR
+;
 [general]
 enabled = yes
+
+; The "mappings" category can be used to define additional "key: value" pairs
+; that will be included in the manager event. (after AccountCode, Source, etc).
+;
+; Each line like "varname => label" will include a "label: ${CDR(varname)}"
+; in the generated event where ${CDR(varname)} its replaced with its value
+; rate is key in which you set value and Rate is the key where you get that value which is set in rate key
+[mappings]
+;rate => Rate
+;carrier => Carrier
+campaignLogId => campaignLogId
+campaignId => campaignId
+broadcast => broadcast

@@ -7,7 +7,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f "$HERE/.env" ]] && set -a && source "$HERE/.env" && set +a
 
-: "${ASTERISK_VERSION:=22.10.0}"
+: "${ASTERISK_VERSION:=22.7.0}"
 : "${NODE_VERSION:=v24.16.0}"
 : "${TIMEZONE:=Asia/Kathmandu}"
 

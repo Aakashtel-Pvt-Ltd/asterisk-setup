@@ -19,8 +19,9 @@ else
 fi
 
 # Generated app-layer configs, if this is a re-run on an existing box
-for f in "${PROJECTS_DIR:-/home/projects}/user.conf" \
-         "${PROJECTS_DIR:-/home/projects}/queue_custom.conf"; do
+for f in "${PROJECTS_DIR:-/home/stage/asterisk}/users.conf" \
+         "${PROJECTS_DIR:-/home/stage/asterisk}/queue_custom.conf" \
+         "${PROJECTS_DIR:-/home/stage/asterisk}/moh_files.conf"; do
   [[ -f "$f" ]] && cp -a "$f" "$DEST/" && echo "    saved $f"
 done
 
