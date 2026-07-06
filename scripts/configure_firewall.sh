@@ -12,8 +12,8 @@ require_root
 
 : "${RTP_START:=10000}" "${RTP_END:=20000}"
 : "${LOCAL_CIDR:=192.168.0.0/24}"
-# Carrier SBCs: Ncell KTM/POK + Airtel + NTC proxy (override via .env)
-: "${PROVIDER_ALLOW_IPS:=116.68.210.56 116.68.213.56 125.18.88.81 10.40.55.4}"
+# Carrier SBCs: Ncell KTM/POK + NTC proxy (override via .env)
+: "${PROVIDER_ALLOW_IPS:=116.68.210.56 116.68.213.56 10.40.55.4}"
 : "${ADMIN_ALLOW_IPS:=}"
 
 command -v nft >/dev/null || { echo "Installing nftables"; apt-get install -y nftables; }

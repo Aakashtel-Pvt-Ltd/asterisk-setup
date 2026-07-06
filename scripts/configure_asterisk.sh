@@ -35,8 +35,6 @@ export ENABLE_NTC ENABLE_NCELL
 
 # Non-secret site constants — default to the live server's values so an older
 # (NTC-only) .env still renders a complete config.
-export AIRTEL_TRUNK_USER="${AIRTEL_TRUNK_USER:-UKB225}"
-export AIRTEL_SBC="${AIRTEL_SBC:-125.18.88.81}"
 export OPENSIPS_HOST="${OPENSIPS_HOST:-192.168.0.154}"
 export AI_GATEWAY_WS_URL="${AI_GATEWAY_WS_URL:-wss://gateway.aakashpay.com/realtime/}"
 
@@ -77,7 +75,7 @@ SUBST_VARS='${PUBLIC_IP} ${LOCAL_CIDR} ${RTP_START} ${RTP_END} \
 ${NCELL_TRUNK_NAME} ${NCELL_FROM_USER} ${NCELL_SBC_KTM} ${NCELL_SBC_POK} \
 ${NTC_TRUNK_NAME} ${NTC_PROVIDER_HOST} ${NTC_PROXY} ${NTC_PROXY_HOST} \
 ${NTC_USERNAME} ${NTC_SECRET} ${NTC_CODEC} \
-${AIRTEL_TRUNK_USER} ${AIRTEL_SBC} ${OPENSIPS_HOST} \
+${OPENSIPS_HOST} \
 ${AMI_USER} ${AMI_SECRET} ${AMI_BIND} ${ARI_USER} ${ARI_SECRET} \
 ${TLS_CERT} ${TLS_KEY} ${HTTP_BIND} ${HTTPS_BIND} ${SYSTEMNAME} \
 ${AI_GATEWAY_WS_URL} ${PROJECTS_DIR}'
