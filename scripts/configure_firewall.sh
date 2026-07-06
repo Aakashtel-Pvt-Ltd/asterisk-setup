@@ -10,14 +10,16 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 require_root() { [[ "$(id -u)" == "0" ]] || { echo "Run as root"; exit 1; }; }
 require_root
 
-: "${RTP_START:=10000}" "${RTP_END:=30000}"
-: "${LOCAL_CIDR:=172.16.176.0/24}" "${CARRIER_CIDR:=10.40.55.0/24}"
-: "${PROVIDER_ALLOW_IPS:=}" "${ADMIN_ALLOW_IPS:=}"
+: "${RTP_START:=10000}" "${RTP_END:=20000}"
+: "${LOCAL_CIDR:=192.168.0.0/24}"
+# Carrier SBCs: Ncell KTM/POK + Airtel + NTC proxy (override via .env)
+: "${PROVIDER_ALLOW_IPS:=116.68.210.56 116.68.213.56 125.18.88.81 10.40.55.4}"
+: "${ADMIN_ALLOW_IPS:=}"
 
 command -v nft >/dev/null || { echo "Installing nftables"; apt-get install -y nftables; }
 
-# Build set elements for SIP source allow-list (carrier + LAN + provider IPs + admin IPs)
-sip_srcs="$LOCAL_CIDR, $CARRIER_CIDR"
+# Build set elements for SIP source allow-list (LAN + provider IPs + admin IPs)
+sip_srcs="$LOCAL_CIDR"
 for ip in $PROVIDER_ALLOW_IPS $ADMIN_ALLOW_IPS; do sip_srcs+=", $ip"; done
 admin_srcs="$LOCAL_CIDR"
 for ip in $ADMIN_ALLOW_IPS; do admin_srcs+=", $ip"; done

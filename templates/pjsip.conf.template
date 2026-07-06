@@ -1,110 +1,86 @@
-; pjsip.conf — rendered by configure_asterisk.sh (envsubst)
-; Reproduces the Aakashtel NTC IMS trunk + NAT settings. Secrets come from .env.
 
+;================================TEL URIs=====================================
+;
+; Asterisk has TEL URI support, but with limited scope. Support is only for
+; TEL URIs present in traffic from a remote party. Asterisk does not generate
+; any TEL URIs of its own.
+;
+; Currently, the allowed request types are INVITE, ACK, BYE, and CANCEL. Any
+; other request type that contains a TEL URI will behave as it did before.
+; TEL URIs are allowed in the request, From, and To headers.
+;
+; You can match a TEL URI From header by IP, header, or auth_username.
 [global]
-max_forwards=70
-ignore_uri_user_options=yes
-nat=yes
 icesupport=yes
-rewrite_contact=yes
-force_rport=yes
-rtp_symmetric=yes
+local_net=${LOCAL_CIDR}
+;external_media_address=${PUBLIC_IP}
+;external_signaling_address=${PUBLIC_IP}
+;endpoint_identifier_order=auth_username,username,ip,anonymous
 
-;=============================== Transports ===============================
-[system-udp]
+
+; --- Main UDP transport (moved here from ncell.conf so the NTC trunk can use
+;     it even when the Ncell trunk is disabled). Name kept for live parity. ---
+[system-udp-ens224]
 type=transport
 protocol=udp
 bind=0.0.0.0
-allow_reload=yes
-local_net=${LOCAL_CIDR}
-local_net=${CARRIER_CIDR}
+;external_signaling_address=${PUBLIC_IP}
 external_media_address=${PUBLIC_IP}
-external_signaling_address=${PUBLIC_IP}
-
-[tcp_transport]
-type=transport
-protocol=tcp
-bind=0.0.0.0
+local_net=${LOCAL_CIDR}
 allow_reload=yes
+
 
 [tls_transport]
 type=transport
 protocol=tls
 bind=0.0.0.0
-allow_reload=yes
-method=tlsv1_2
 cert_file=${TLS_CERT}
 priv_key_file=${TLS_KEY}
+cipher=ADH-AES256-SHA,ADH-AES128-SHA
+method=tlsv1
+allow_reload=yes
+
+
+[kamailio]
+type=endpoint
+transport=system-udp-ens224
+context=from-kamailio
+disallow=all
+allow=alaw,ulaw
+aors=kamailio_aor
+direct_media=no
+outbound_proxy=sip:127.0.0.1:5070
+
+[kamailio_aor]
+type=aor
+contact=sip:127.0.0.1:5070
+
+[kamailio_identify]
+type=identify
+endpoint=kamailio
+match=127.0.0.1
 
 [wss_transport]
 type=transport
 protocol=wss
 bind=0.0.0.0
 allow_reload=yes
-cert_file=${TLS_CERT}
-priv_key_file=${TLS_KEY}
-method=tlsv1_2
-local_net=${LOCAL_CIDR}
-local_net=${CARRIER_CIDR}
-external_media_address=${PUBLIC_IP}
 
-;=============================== NTC IMS trunk ===========================
-[${SIP_TRUNK_NAME}]
-type=auth
+
+[single_aor](!)
+max_contacts=1
+remove_existing=yes
+qualify_frequency=5
+remove_unavailable=yes
+
+[userpass_auth](!)
 auth_type=userpass
-username=${SIP_USERNAME}
-password=${SIP_SECRET}          ; <REDACTED_SECRET> injected from .env at deploy time
 
-[${SIP_TRUNK_NAME}]
-type=registration
-transport=system-udp
-outbound_auth=${SIP_TRUNK_NAME}
-server_uri=sip:${SIP_PROXY}
-client_uri=sip:${SIP_USERNAME}
-outbound_proxy=sip:${SIP_PROXY}
-contact_user=${SIP_TRUNK_NAME}
-retry_interval=60
-
-[${SIP_TRUNK_NAME}]
-type=aor
-contact=sip:${SIP_PROXY}
-
-[${SIP_TRUNK_NAME}_incomming]
-type=endpoint
-context=incomming
-disallow=all
-allow=${TRUNK_CODEC}
-outbound_auth=${SIP_TRUNK_NAME}
-aors=${SIP_TRUNK_NAME}
-direct_media=no
-from_domain=${SIP_PROVIDER_HOST}
-from_user=${SIP_TRUNK_NAME}
-user_eq_phone=yes
-
-[${SIP_TRUNK_NAME}_outgoing]
-type=endpoint
-context=from-extension
-disallow=all
-allow=${TRUNK_CODEC}
-outbound_auth=${SIP_TRUNK_NAME}
-aors=${SIP_TRUNK_NAME}
-direct_media=no
-from_domain=${SIP_PROVIDER_HOST}
-from_user=${SIP_TRUNK_NAME}
-user_eq_phone=yes
-
-[${SIP_TRUNK_NAME}]
-type=identify
-endpoint=${SIP_TRUNK_NAME}_incomming
-match=${SIP_PROXY_HOST}
-
-;=========================== Endpoint templates =========================
 [basic_endpoint](!)
-type=endpoint
 moh_suggest=default
 context=from-extensions
 inband_progress=no
-rtp_timeout=0
+rtp_timeout=60
 message_context=textmessages
 allow_subscribe=yes
 subscribe_context=subscriptions
@@ -112,42 +88,122 @@ direct_media=no
 dtmf_mode=rfc4733
 device_state_busy_at=1
 disallow=all
-transport=system-udp
-allow=alaw,ulaw
-force_rport=yes
+transport=system-udp-ens224
 rtp_symmetric=yes
+force_rport=yes
 rewrite_contact=yes
+rtp_keepalive=60
+notify_early_inuse_ringing=yes
+ice_support=yes
+rtcp_mux=yes
+allow=ulaw,alaw,g722,gsm
 
 [webrtc_endpoint](!)
-type=endpoint
 transport=wss_transport
+allow=alaw,ulaw,g722,opus
 webrtc=yes
+use_avpf=yes
+media_encryption=dtls
+dtls_verify=fingerprint
+dtls_setup=actpass
+ice_support=yes
+media_use_received_transport=yes
 rtcp_mux=yes
+
+[${AIRTEL_TRUNK_USER}]
+type=endpoint
+transport=system-udp-ens224
+context=incomming
 disallow=all
-allow=ulaw,alaw,g722,opus
+allow=alaw,ulaw,g722
+direct_media=no
 rtp_symmetric=yes
 force_rport=yes
 rewrite_contact=yes
-direct_media=no
-media_use_received_transport=yes
-dtls_auto_generate_cert=no
-dtls_cert_file=${TLS_CERT}
-dtls_private_key=${TLS_KEY}
-dtls_setup=actpass
-dtls_verify=no
-ice_support=yes
-use_avpf=yes
-media_encryption=dtls
+from_user=${AIRTEL_TRUNK_USER}
+from_domain=${AIRTEL_SBC}
+callerid=${AIRTEL_TRUNK_USER}
+send_pai=yes
+trust_id_inbound=yes
+send_rpid=yes
+aors=airtel
 
-[single_aor](!)
+
+[airtel-identify](!)
+type=identify
+match=${AIRTEL_SBC}
+
+[${AIRTEL_TRUNK_USER}_incomming_identify](airtel-identify)
+endpoint=${AIRTEL_TRUNK_USER}
+
+[airtel]
 type=aor
-max_contacts=1
-qualify_frequency=15
+contact=sip:${AIRTEL_SBC}:5060
+qualify_frequency=60
+qualify_timeout=3.0
 remove_existing=yes
 
-[userpass_auth](!)
-type=auth
-auth_type=userpass
 
-; Local SIP endpoints are generated by sipuser.service into the file below.
-#include ${PROJECTS_DIR}/user.conf
+
+[2005](basic_endpoint,webrtc_endpoint)
+type=endpoint
+context=sipp
+callerid=2005 <2005>
+auth=2005
+aors=2005
+
+[2005](single_aor)
+type=aor
+[2005](userpass_auth)
+type=auth
+username=2005
+password=2005
+
+
+[opensips]
+type=endpoint
+transport=system-udp-ens224
+context=from-opensips
+disallow=all
+allow=ulaw,alaw
+direct_media=no
+aors=opensips
+
+[opensips]
+type=aor
+contact=sip:${OPENSIPS_HOST}:5060;transport=udp
+qualify_frequency=30
+
+
+[opensips]
+type=identify
+endpoint=opensips
+match=${OPENSIPS_HOST}
+
+[freeswitch_static]
+type=endpoint
+transport=system-udp-ens224
+context=from-freeswitch
+disallow=all
+allow=ulaw,alaw
+aors=freeswitch_static
+direct_media=no
+force_rport=yes
+rewrite_contact=yes
+rtp_symmetric=yes
+
+[freeswitch_static]
+type=aor
+contact=sip:127.0.0.1:5090
+
+[freeswitch_static]
+type=identify
+endpoint=freeswitch_static
+match=127.0.0.1
+	
+#include /etc/asterisk/ncell.conf
+#include /etc/asterisk/ntc.conf
+#include /etc/asterisk/pjsip_endpoints.conf
+#include ${PROJECTS_DIR}/users.conf
+#include ${PROJECTS_DIR}/queue_custom.conf
+

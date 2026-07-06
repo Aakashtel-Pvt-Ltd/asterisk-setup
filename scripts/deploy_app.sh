@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the /home/projects application layer: npm install for the Node services,
+# Deploy the /home/stage/asterisk application layer: npm install for the Node services,
 # render + install their systemd units, and enable them. The application CODE
 # itself (PHP AGI + Node JS + each app .env with its API tokens/AWS keys) is NOT
 # shipped in this kit — you must place it in ${PROJECTS_DIR} first (from your repo).
@@ -12,7 +12,7 @@ set -a && source "$HERE/.env" && set +a
 require_root() { [[ "$(id -u)" == "0" ]] || { echo "Run as root"; exit 1; }; }
 require_root
 
-: "${PROJECTS_DIR:=/home/projects}"
+: "${PROJECTS_DIR:=/home/stage/asterisk}"
 : "${NODE_VERSION:=v24.16.0}"
 : "${APP_SERVICES:=ami broadcast sipuser sipqueue-populate}"
 NODE_BIN="/root/.nvm/versions/node/${NODE_VERSION}/bin/node"
@@ -23,7 +23,7 @@ if [[ ! -d "$PROJECTS_DIR/ami" || ! -f "$PROJECTS_DIR/ami/listAllEvent.js" ]]; t
   cat <<EOF
 WARNING: $PROJECTS_DIR/ami/listAllEvent.js not found.
 The application code is not part of this kit. Before running 'make services':
-  1. Copy your app into $PROJECTS_DIR (agi/, stageagi/, ami/, broadcast/, service/, voice/)
+  1. Copy your app into $PROJECTS_DIR (agi/, ami/, broadcast/, service/, voice/)
   2. Populate each app .env (APP_BACKEND_BASE_URL, AMI creds, AWS S3 keys)
 Skipping service install.
 EOF
@@ -52,8 +52,8 @@ for svc in $APP_SERVICES; do
   systemctl enable "$svc" 2>/dev/null || true
 done
 
-# Ownership of the app tree (matches reference: asterisk owns /home/projects apps)
-chown -R asterisk:asterisk "$PROJECTS_DIR"/{agi,ami,broadcast,service,voice,stageagi} 2>/dev/null || true
+# Ownership of the app tree (matches reference: asterisk owns /home/stage/asterisk apps)
+chown -R asterisk:asterisk "$PROJECTS_DIR"/{agi,ami,broadcast,service,voice} 2>/dev/null || true
 
 echo "==> App services installed & enabled: $APP_SERVICES"
 echo "    Start them with: systemctl start $APP_SERVICES"

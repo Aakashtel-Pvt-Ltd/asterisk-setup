@@ -13,11 +13,21 @@ say() { printf '  [%s] %s\n' "$1" "$2"; }
 echo "==> Asterisk version"
 asterisk -rx "core show version" 2>/dev/null || { echo "  Asterisk not reachable"; exit 1; }
 
-echo "==> Trunk registration"
-if asterisk -rx "pjsip show registrations" 2>/dev/null | grep -qi "Registered"; then
-  say OK "SIP trunk Registered"
-else
-  say FAIL "trunk NOT registered"; rc=1
+echo "==> Trunk status"
+# NTC registers; Ncell is IP-auth (no registration) — its AOR must qualify Avail.
+if [[ "${ENABLE_NTC:-no}" == "yes" ]]; then
+  if asterisk -rx "pjsip show registrations" 2>/dev/null | grep -qi "Registered"; then
+    say OK "NTC trunk Registered"
+  else
+    say FAIL "NTC trunk NOT registered"; rc=1
+  fi
+fi
+if [[ "${ENABLE_NCELL:-yes}" == "yes" ]]; then
+  if asterisk -rx "pjsip show aors" 2>/dev/null | grep -A3 -i "ncell" | grep -qi "Avail"; then
+    say OK "Ncell SBC contacts reachable (qualify Avail)"
+  else
+    say WARN "Ncell SBC contacts not Avail (check ncell.conf / network)"
+  fi
 fi
 
 echo "==> Transports"
@@ -29,7 +39,7 @@ for p in 5060 5061 5038 8088 7443 "$RTP_START"; do
 done
 
 echo "==> Dialplan contexts"
-for c in incomming from-extensions outgoing ami-action; do
+for c in incomming from-extensions outgoing ami-action from-kamailio conference-app; do
   if asterisk -rx "dialplan show $c" 2>/dev/null | grep -q "Context '$c'"; then
     say OK "context $c present"
   else
@@ -49,7 +59,7 @@ if [[ -f "$LOG" ]]; then
 fi
 
 echo "==> Web / TLS layer"
-: "${PHP_VERSION:=8.3}" "${CERT_DEST:=/home/certs}" "${DOMAIN:=}"
+: "${PHP_VERSION:=8.3}" "${CERT_DEST:=/home/stage/asterisk/certs}" "${DOMAIN:=}"
 systemctl is-active --quiet nginx && say OK "nginx active" || say WARN "nginx not active"
 systemctl is-active --quiet "php${PHP_VERSION}-fpm" && say OK "php${PHP_VERSION}-fpm active" || say WARN "php-fpm not active"
 if [[ -f "$CERT_DEST/fullchain.pem" && -f "$CERT_DEST/privkey.pem" ]]; then
@@ -61,9 +71,12 @@ fi
 systemctl is-enabled --quiet certbot.timer 2>/dev/null && say OK "certbot auto-renew enabled" || say WARN "certbot.timer not enabled"
 
 echo "==> Companion services"
-for u in ami broadcast sipqueue-populate; do
-  systemctl is-active --quiet "$u" && say OK "$u.service active" || say WARN "$u.service not active"
+# sipuser/sipqueue-populate are oneshot generators (check enabled, not active);
+# long-running Node apps live under pm2 on the reference box.
+for u in ${APP_SERVICES:-sipuser sipqueue-populate}; do
+  systemctl is-enabled --quiet "$u" 2>/dev/null && say OK "$u.service installed" || say WARN "$u.service not installed"
 done
+command -v pm2 >/dev/null && pm2 list 2>/dev/null | grep -q online && say OK "pm2 apps online" || say WARN "pm2 apps not detected (AMI-Broadcaster/ari-node/conference-app run under pm2)"
 
 echo
 [[ $rc -eq 0 ]] && echo "VERIFY: PASS" || echo "VERIFY: issues found (see WARN/FAIL above)"

@@ -4,13 +4,12 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=${NODE_BIN} ${PROJECTS_DIR}/ami/QueueUsers.js
+Type=oneshot
 WorkingDirectory=${PROJECTS_DIR}/ami
-RestartSec=30
-Restart=always
+ExecStart=${NODE_BIN} ${PROJECTS_DIR}/ami/QueueUsers.js
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=nodejs-my-server-example
+SyslogIdentifier=sipqueue-populate
 Environment=PATH=/usr/bin:/usr/local/bin
 
 [Install]

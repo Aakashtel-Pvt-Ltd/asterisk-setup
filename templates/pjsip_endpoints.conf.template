@@ -1,0 +1,20 @@
+; pjsip_endpoints.conf — static/manual SIP endpoints (included by pjsip.conf).
+; App-generated extensions live in ${PROJECTS_DIR}/users.conf (sipuser service);
+; this file is for hand-managed endpoints only.
+;
+; The live server carried one manual test extension here (101_15971965).
+; Uncomment and set a real password to reproduce it:
+;
+;[101_15971965](basic_endpoint,webrtc_endpoint)
+;type=endpoint
+;context=from-extensions
+;callerid=101 <101_15971965>
+;auth=101_15971965
+;aors=101_15971965
+;
+;[101_15971965](single_aor)
+;type=aor
+;[101_15971965](userpass_auth)
+;type=auth
+;username=101
+;password=CHANGE_ME

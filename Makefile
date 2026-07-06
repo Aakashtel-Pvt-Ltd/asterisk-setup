@@ -1,5 +1,6 @@
-# asterisk-deploy — rebuild the "Aakashtel" call-center PBX on a fresh host.
-# Reference server: Ubuntu 24.04, Asterisk 22.10.0 (source build), behind NAT.
+# asterisk-deploy — rebuild the "Aakashtech" call-center PBX on a fresh host.
+# Reference server: Ubuntu 24.04, Asterisk 22.7.0 (source build).
+# Trunks: Ncell (IP-auth) + NTC IMS (registration) — toggled in .env.
 # Usage: cp .env.example .env && edit .env && sudo make deploy
 
 SHELL := /bin/bash
@@ -59,7 +60,8 @@ fail2ban: check ## Install asterisk + sshd jails (matches reference)
 deploy: backup install configure webserver tls services firewall fail2ban ## Full sequence (no service restart)
 	@echo "Deploy complete. Review, then start services:"
 	@echo "  systemctl enable --now asterisk"
-	@echo "  systemctl start ami broadcast sipuser sipqueue-populate"
+	@echo "  systemctl start sipuser sipqueue-populate   # oneshot config generators"
+	@echo "  (long-running Node apps — AMI-Broadcaster, ari-node, conference-app — run under pm2)"
 	@echo "Then run: make verify"
 
 verify: check ## Check registration, ports, and log health
