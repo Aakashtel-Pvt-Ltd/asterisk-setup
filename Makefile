@@ -6,11 +6,11 @@
 SHELL := /bin/bash
 ENV_FILE ?= .env
 
-# Load .env if present (export all vars to the recipe environment)
-ifneq (,$(wildcard ./$(ENV_FILE)))
-include $(ENV_FILE)
-export
-endif
+# NOTE: .env is intentionally NOT `include`d here. Every script sources it
+# directly (set -a; source .env), which parses inline comments and trailing
+# whitespace correctly. Make's `include` keeps trailing spaces before a `#`
+# as part of the value (e.g. PHP_VERSION=8.3<spaces> -> php8.3<spaces>-cli),
+# so pulling vars in at the Make layer would silently corrupt them.
 
 SCRIPTS := ./scripts
 
@@ -31,6 +31,9 @@ check: ## Preflight: root, OS, .env present, connectivity
 	@. /etc/os-release; echo "OS: $$PRETTY_NAME"; \
 		case "$$ID" in ubuntu|debian) : ;; *) echo "WARN: kit tuned for Ubuntu/Debian";; esac
 	@command -v envsubst >/dev/null || { echo "ERROR: gettext-base (envsubst) required"; exit 1; }
+	@! grep -q '<ASK_USER>' $(ENV_FILE) || { \
+		echo "ERROR: $(ENV_FILE) still has <ASK_USER> placeholders — fill them in:"; \
+		grep -n '<ASK_USER>' $(ENV_FILE); exit 1; }
 	@echo "Preflight OK."
 
 backup: check ## Snapshot existing /etc/asterisk before any change
